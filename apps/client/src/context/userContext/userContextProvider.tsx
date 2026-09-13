@@ -1,6 +1,6 @@
 import { FC, ReactNode, useState } from "react";
-import { User } from "../../types";
 import { userContext } from "./userContext";
+import { User } from "@repo/dto";
 
 export const UserContextProvider: FC<{ children: ReactNode }> = ({
   children,

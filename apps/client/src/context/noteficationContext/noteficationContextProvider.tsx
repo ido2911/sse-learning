@@ -1,7 +1,7 @@
 import { FC, ReactNode, useEffect, useState } from "react";
-import { Notefication } from "../../types";
 import { noteficationContext } from "./noteficationContext";
 import { subscribeEvent } from "../../utils/subscribeEvent";
+import { Notefication } from "@repo/dto";
 
 export const NoteficationContextProvider: FC<{ children: ReactNode }> = ({
   children,

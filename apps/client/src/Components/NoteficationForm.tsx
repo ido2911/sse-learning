@@ -1,8 +1,8 @@
 import { FC, useEffect, useState } from "react";
 import { useForm, SubmitHandler } from "react-hook-form";
 import { useUserContext } from "../context/userContext/userContext";
-import { Notefication } from "../types";
 import { appFetch } from "../utils/appFetch";
+import { Notefication } from "@repo/dto";
 
 export const NoteficationForm: FC = () => {
   const { currentUser } = useUserContext();

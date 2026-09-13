@@ -1,5 +1,5 @@
+import { Notefication } from "@repo/dto";
 import { FC } from "react";
-import { Notefication } from "../types";
 
 interface NoteficationProps {
     notefication: Notefication

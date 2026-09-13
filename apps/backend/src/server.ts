@@ -1,10 +1,10 @@
 import "dotenv/config";
 import express, { Request, Response } from "express";
 import cors from "cors";
-import { Notefication } from "./types/types.js";
+import { Notefication } from "@repo/dto";
 
-const app = express();
 const PORT = process.env.PORT || 3000;
+const app = express();
 
 app.use(cors());
 app.use(express.json());

@@ -1,5 +1,5 @@
+import { Notefication } from "@repo/dto";
 import { createContext, useContext } from "react";
-import { Notefication } from "../../types";
 
 interface NoteficationContext {
   notefications: Notefication[];

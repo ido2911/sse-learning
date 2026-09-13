@@ -1,5 +1,5 @@
+import { User } from "@repo/dto";
 import { createContext, useContext } from "react";
-import { User } from "../../types";
 
 interface UserContext {
   users: User[];
