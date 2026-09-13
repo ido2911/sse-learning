@@ -44,7 +44,8 @@ export const NoteficationForm: FC = () => {
         flexDirection: "column",
         gap: "16px",
         width: "280px",
-      }}>
+      }}
+    >
       <div>
         <label style={{ display: "block", marginBottom: "4px" }}>Message</label>
         <textarea
@@ -73,7 +74,8 @@ export const NoteficationForm: FC = () => {
           border: "none",
           borderRadius: "4px",
           cursor: "pointer",
-        }}>
+        }}
+      >
         Submit
       </button>
     </form>

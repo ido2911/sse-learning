@@ -7,3 +7,8 @@ export interface Notefication {
   time: Date;
   message: string;
 }
+
+export interface KafkaClient {
+    publish: (notefication: Notefication) => void,
+    disconnect: () => void
+}

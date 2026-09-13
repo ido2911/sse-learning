@@ -2,79 +2,101 @@ import "dotenv/config";
 import express, { Request, Response } from "express";
 import cors from "cors";
 import { Notefication } from "@repo/dto";
+import { createNotificationMessaging } from "./utils/kafka.js";
 
-const PORT = process.env.PORT || 3000;
-const app = express();
+const startServer = async () => {
+  const PORT = process.env.PORT || 3000;
 
-app.use(cors());
-app.use(express.json());
-const activeClients = new Set<Response>();
+  const app = express();
 
-app.get("/", (req: Request, res: Response) => {
-  res.json({ message: "Hello from server" });
-});
+  app.use(cors());
+  app.use(express.json());
+  const activeClients = new Set<Response>();
 
-app.get("/sse", (req: Request, res: Response) => {
-  // Set required headers for SSE
-  res.setHeader("Content-Type", "text/event-stream");
-  res.setHeader("Cache-Control", "no-cache");
-  res.setHeader("Connection", "keep-alive");
-  res.flushHeaders(); // Flush headers immediately to establish connection
+  const brokers = (process.env.KAFKA_BROKERS ?? "localhost:9092")
+    .split(",")
+    .map((broker) => broker.trim());
 
-  // Send updates periodically
-  const intervalId = setInterval(() => {
-    const payload = { time: new Date().toISOString(), message: "Server ping" };
+  const kafka = await createNotificationMessaging(
+    brokers,
+    (notification: Notefication) => {
+      const payload = `data: ${JSON.stringify(notification)}\n\n`;
 
-    // Format must follow "data: <content>\n\n"
-    res.write(`data: ${JSON.stringify(payload)}\n\n`);
-  }, 1000);
+      activeClients.forEach((client) => {
+        client.write(payload);
+      });
+    },
+  );
 
-  // Clean up resource allocations when the client disconnects
-  req.on("close", () => {
-    clearInterval(intervalId);
-    res.end();
+  app.get("/", (req: Request, res: Response) => {
+    res.json({ message: "Hello from server" });
   });
-});
 
-app.get("/api/notefications/sse", (req, res) => {
-  res.setHeader("Content-Type", "text/event-stream");
-  res.setHeader("Cache-Control", "no-cache");
-  res.setHeader("Connection", "keep-alive");
-  res.flushHeaders();
+  app.get("/sse", (req: Request, res: Response) => {
+    // Set required headers for SSE
+    res.setHeader("Content-Type", "text/event-stream");
+    res.setHeader("Cache-Control", "no-cache");
+    res.setHeader("Connection", "keep-alive");
+    res.flushHeaders(); // Flush headers immediately to establish connection
 
-  activeClients.add(res);
+    // Send updates periodically
+    const intervalId = setInterval(() => {
+      const payload = {
+        time: new Date().toISOString(),
+        message: "Server ping",
+      };
 
-  const heartbeatId = setInterval(() => {
-    res.write(": heartbeat\n\n");
-  }, 15000);
+      // Format must follow "data: <content>\n\n"
+      res.write(`data: ${JSON.stringify(payload)}\n\n`);
+    }, 1000);
 
-  req.on("close", () => {
-    clearInterval(heartbeatId);
-    activeClients.delete(res);
-    res.end();
+    // Clean up resource allocations when the client disconnects
+    req.on("close", () => {
+      clearInterval(intervalId);
+      res.end();
+    });
   });
-});
 
-app.post("/api/notefications", (req, res) => {
-  const { user, time, message } = req.body;
+  app.get("/api/notefications/sse", (req, res) => {
+    res.setHeader("Content-Type", "text/event-stream");
+    res.setHeader("Cache-Control", "no-cache");
+    res.setHeader("Connection", "keep-alive");
+    res.flushHeaders();
 
-  if (!message) {
-    return res.status(400).json({ error: "Message is required" });
-  }
+    activeClients.add(res);
 
-  const notification: Notefication = {
-    user,
-    message,
-    time,
-  };
+    const heartbeatId = setInterval(() => {
+      res.write(": heartbeat\n\n");
+    }, 15000);
 
-  // Push to all active SSE subscribers
-  const payload = `data: ${JSON.stringify(notification)}\n\n`;
-  activeClients.forEach((client) => client.write(payload));
+    req.on("close", () => {
+      clearInterval(heartbeatId);
+      activeClients.delete(res);
+      res.end();
+    });
+  });
 
-  return res.status(201).json({ notification });
-});
+  app.post("/api/notefications", (req, res) => {
+    const { user, time, message } = req.body;
 
-app.listen(PORT, () => {
-  console.log(`Server is running on http://localhost:${PORT}`);
-});
+    if (!message) {
+      return res.status(400).json({ error: "Message is required" });
+    }
+
+    const notification: Notefication = {
+      user,
+      message,
+      time,
+    };
+
+    kafka.publish(notification)
+
+    return res.status(201).json({ notification });
+  });
+
+  app.listen(PORT, () => {
+    console.log(`Server is running on http://localhost:${PORT}`);
+  });
+};
+
+startServer();

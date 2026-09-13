@@ -54,7 +54,10 @@ export const Home: FC = () => {
 
       <div>
         notefications:
-        {notefications.length && notefications.map((notefication) => <NoteficationComponent notefication={notefication} />)}
+        {notefications.length &&
+          notefications.map((notefication) => (
+            <NoteficationComponent notefication={notefication} />
+          ))}
       </div>
     </>
   );
