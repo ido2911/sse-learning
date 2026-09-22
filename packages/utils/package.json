@@ -1,0 +1,23 @@
+{
+  "name": "@repo/utils",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "check-types": "tsc --noEmit"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "module",
+  "dependencies": {
+    "@repo/dto": "workspace:*",
+    "kafkajs": "^2.2.4"
+  },
+  "devDependencies": {
+    "typescript": "^5.0.0"
+  }
+}

@@ -2,31 +2,41 @@ import "dotenv/config";
 import express, { Request, Response } from "express";
 import cors from "cors";
 import { Notefication } from "@repo/dto";
-import { createNotificationMessaging } from "./utils/kafka.js";
+import { createKafkaClient } from "@repo/utils";
+
+const createPayload = (payload: unknown): string =>
+  `data: ${JSON.stringify(payload)}\n\n`;
 
 const startServer = async () => {
   const PORT = process.env.PORT || 3000;
+  const NOTEFICATION_TOPIC = "notefications-events";
 
   const app = express();
 
   app.use(cors());
   app.use(express.json());
-  const activeClients = new Set<Response>();
 
   const brokers = (process.env.KAFKA_BROKERS ?? "localhost:9092")
     .split(",")
     .map((broker) => broker.trim());
 
-  const kafka = await createNotificationMessaging(
-    brokers,
-    (notification: Notefication) => {
-      const payload = `data: ${JSON.stringify(notification)}\n\n`;
+  const activeClients = new Set<Response>();
 
-      activeClients.forEach((client) => {
-        client.write(payload);
-      });
+  const kafka = await createKafkaClient({ clientId: "server", brokers });
+  await kafka.ensureTopicsExist([NOTEFICATION_TOPIC]);
+
+  const producer = kafka.createProducer();
+  const consumer = kafka.createConsumer({
+    groupId: "notefication-processing",
+  });
+
+  consumer.subscribeAndListen<Notefication>({
+    topic: NOTEFICATION_TOPIC,
+    onMessage: ({ data }) => {
+      console.log("DATA: ", data);
+      activeClients.forEach((res) => res.write(createPayload(data)));
     },
-  );
+  });
 
   app.get("/", (req: Request, res: Response) => {
     res.json({ message: "Hello from server" });
@@ -47,7 +57,7 @@ const startServer = async () => {
       };
 
       // Format must follow "data: <content>\n\n"
-      res.write(`data: ${JSON.stringify(payload)}\n\n`);
+      res.write(createPayload(payload));
     }, 1000);
 
     // Clean up resource allocations when the client disconnects
@@ -57,17 +67,17 @@ const startServer = async () => {
     });
   });
 
-  app.get("/api/notefications/sse", (req, res) => {
+  app.get("/api/notefications/sse", async (req, res) => {
     res.setHeader("Content-Type", "text/event-stream");
     res.setHeader("Cache-Control", "no-cache");
     res.setHeader("Connection", "keep-alive");
     res.flushHeaders();
 
-    activeClients.add(res);
-
     const heartbeatId = setInterval(() => {
       res.write(": heartbeat\n\n");
     }, 15000);
+
+    activeClients.add(res);
 
     req.on("close", () => {
       clearInterval(heartbeatId);
@@ -76,7 +86,7 @@ const startServer = async () => {
     });
   });
 
-  app.post("/api/notefications", (req, res) => {
+  app.post("/api/notefications", async (req, res) => {
     const { user, time, message } = req.body;
 
     if (!message) {
@@ -84,19 +94,38 @@ const startServer = async () => {
     }
 
     const notification: Notefication = {
+      id: crypto.randomUUID(),
       user,
       message,
-      time,
+      time: new Date(time),
     };
 
-    kafka.publish(notification)
+    await producer.send<Notefication>({
+      topic: NOTEFICATION_TOPIC,
+      messages: [{ key: notification.id, value: notification }],
+    });
 
     return res.status(201).json({ notification });
   });
 
-  app.listen(PORT, () => {
+  const server = app.listen(PORT, () => {
     console.log(`Server is running on http://localhost:${PORT}`);
   });
+
+  const shutdown = async () => {
+    console.log("shutting down server");
+
+    server.close(async () => {
+      await producer.disconnect();
+      await consumer.disconnect();
+      console.log("killed producer and consumer");
+
+      process.exit(0);
+    });
+  };
+
+  process.on("SIGINT", () => shutdown);
+  process.on("SIGTERM", () => shutdown);
 };
 
 startServer();
